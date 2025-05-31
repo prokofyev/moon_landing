@@ -1,28 +1,20 @@
 import pygame
 import sys
 
+from constants import *
+from lunar_lander import LunarLander
+from debris import Debris
+
 # Инициализация Pygame
 pygame.init()
-
-# Константы
-SCREEN_WIDTH = 1200
-SCREEN_HEIGHT = 900
-GRAVITY = 1.62  # Ускорение свободного падения на Луне (м/с²)
-THRUST = 3.0    # Сила тяги двигателя (м/с²)
-SAFE_LANDING_SPEED = 2.0  # Безопасная скорость посадки (м/с)
-
-LANDER_SCALE = 0.4
-EXHAUST_SCALE = 0.9
-MAN_SCALE = 0.2
-
-LANDER_WIDTH = 0
-LANDER_HEIGHT = 0
 
 # Создание окна
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Lunar Lander")
 
 def load_and_scale_images():
+    global LANDER_WIDTH, LANDER_HEIGHT, PIXELS_TO_METERS
+
     # Загрузка изображений
     lander_img = pygame.image.load('images/lander.png')
     moon_img = pygame.image.load('images/moon.png')
@@ -36,6 +28,7 @@ def load_and_scale_images():
 
     LANDER_WIDTH = lander_img.get_width()
     LANDER_HEIGHT = lander_img.get_height()
+    PIXELS_TO_METERS = REAL_LANDER_HEIGHT / LANDER_HEIGHT
 
     exhaust_img = pygame.transform.scale(exhaust_img, 
         (int(exhaust_img.get_width() * EXHAUST_SCALE), 
@@ -73,7 +66,7 @@ def check_landing(lander, message_time):
     message = ""
     game_over = False
     
-    if lander.y + LANDER_HEIGHT > SCREEN_HEIGHT - 270:
+    if lander.y + LANDER_HEIGHT > SCREEN_HEIGHT - MOON_SURFACE_HEIGHT:
         if abs(lander.velocity) <= SAFE_LANDING_SPEED:
             message = "Успешная посадка!"
             lander.landed_successfully = True
@@ -82,6 +75,7 @@ def check_landing(lander, message_time):
         else:
             message = "Крушение!"
             lander.crashed = True
+            lander.crash_time = pygame.time.get_ticks()
             game_over = True
         message_time = pygame.time.get_ticks()
     
@@ -94,14 +88,20 @@ def draw_game(screen, lander, images, fonts, message, game_over):
     
     # Draw moon and lander
     screen.blit(moon_img, (0, SCREEN_HEIGHT - moon_img.get_height()))
-    screen.blit(lander_img, (lander.x, lander.y))
-    
-    # Draw exhaust
-    if lander.thrust_on and not lander.crashed and not game_over:
-        screen.blit(exhaust_img, (lander.x + LANDER_WIDTH//2 - exhaust_img.get_width()//2, 
-                                lander.y + LANDER_HEIGHT))
 
-    # Draw astronaut and check animation status
+    # Draw lander or debris
+    if lander.crashed:
+        if lander.debris is None:
+            lander.debris = Debris(lander_img, lander.x, lander.y, lander.velocity)
+        lander.debris.update()
+        lander.debris.draw(screen)
+    else:
+        screen.blit(lander_img, (lander.x, lander.y))
+        if lander.thrust_on and not lander.landed_successfully:
+            screen.blit(exhaust_img, (lander.x + LANDER_WIDTH//2 - exhaust_img.get_width()//2, 
+                                    lander.y + LANDER_HEIGHT))
+    
+     # Draw astronaut and check animation status
     if lander.landed_successfully:
         animation_finished = draw_astronaut(screen, lander, man_img, game_over)
         if animation_finished and not game_over:
@@ -109,9 +109,12 @@ def draw_game(screen, lander, images, fonts, message, game_over):
 
     # Draw explosion
     if lander.crashed:
-        explosion_x = lander.x + LANDER_WIDTH//2 - explosion_img.get_width()//2
-        explosion_y = lander.y + LANDER_HEIGHT//2 - explosion_img.get_height()//2
-        screen.blit(explosion_img, (explosion_x, explosion_y))
+        current_time = pygame.time.get_ticks()
+        # Показываем взрыв только в течение 500 мс после крушения
+        if current_time - lander.crash_time < 50:
+            explosion_x = lander.x + LANDER_WIDTH//2 - explosion_img.get_width()//2
+            explosion_y = lander.y + LANDER_HEIGHT//2 - explosion_img.get_height()//2
+            screen.blit(explosion_img, (explosion_x, explosion_y))
 
     # Draw UI
     draw_ui(screen, lander, font, large_font, message, game_over)
@@ -125,16 +128,23 @@ def draw_astronaut(screen, lander, man_img, game_over):
         start_x = lander.x + LANDER_WIDTH//2
         lander.astronaut_x = start_x + (target_x - start_x) * progress
         screen.blit(man_img, (int(lander.astronaut_x), 
-                            SCREEN_HEIGHT - 270 - man_img.get_height()))
+                            SCREEN_HEIGHT - MOON_SURFACE_HEIGHT - man_img.get_height()))
         return False  # Animation not finished
     else:  # After animation
         screen.blit(man_img, (target_x, 
-                            SCREEN_HEIGHT - 270 - man_img.get_height()))
+                            SCREEN_HEIGHT - MOON_SURFACE_HEIGHT - man_img.get_height()))
         return True  # Animation finished
 
 def draw_ui(screen, lander, font, large_font, message, game_over):
+    # Отображение скорости
     speed_text = font.render(f"Скорость: {abs(lander.velocity):.1f} м/с", True, (255, 255, 255))
     screen.blit(speed_text, (10, 10))
+
+    # Отображение высоты (расстояние от поверхности луны до нижней части ракеты)
+    height_pixels = max(0, SCREEN_HEIGHT - MOON_SURFACE_HEIGHT - (lander.y + LANDER_HEIGHT))
+    height_meters = height_pixels * PIXELS_TO_METERS
+    height_text = font.render(f"Высота: {height_meters:.1f} м", True, (255, 255, 255))
+    screen.blit(height_text, (10, 40))
 
     if game_over:
         text = large_font.render(message, True, (255, 255, 255))
@@ -142,37 +152,6 @@ def draw_ui(screen, lander, font, large_font, message, game_over):
         
         esc_text = font.render("ESC - выход, ПРОБЕЛ - новая игра", True, (255, 255, 255))
         screen.blit(esc_text, (SCREEN_WIDTH//2 - esc_text.get_width()//2, SCREEN_HEIGHT//2 - 30))
-
-
-class LunarLander:
-    def __init__(self):
-        self.reset()
-        self.crashed = False
-        self.landed_successfully = False
-        self.astronaut_x = 0
-        self.landing_time = 0
-
-    def reset(self):
-        self.x = SCREEN_WIDTH // 2 - LANDER_WIDTH // 2
-        self.y = 100
-        self.velocity = 0
-        self.thrust_on = False
-        self.crashed = False
-        self.landed_successfully = False
-        self.astronaut_x = 0
-        self.landing_time = 0
-
-    def update(self):
-        # Применяем гравитацию только если не приземлились успешно
-        if not self.landed_successfully:
-            self.velocity += GRAVITY * 0.1
-
-            # Если двигатель включен, применяем силу тяги
-            if self.thrust_on:
-                self.velocity -= THRUST * 0.1
-
-            # Обновляем позицию
-            self.y += self.velocity
 
 def main():
     clock = pygame.time.Clock()
