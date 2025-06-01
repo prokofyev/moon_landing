@@ -56,6 +56,8 @@ class Debris:
                     piece['dy'] *= -0.5  # Уменьшаем энергию при отскоке
                     piece['dx'] *= 0.8   # Трение
                     piece['rotation_speed'] *= 0.8  # Замедляем вращение при ударе
+                    if random.random() < 0.1:  # 10% шанс на трение
+                        piece['rotation_speed'] *= -1
             else:
                 # Если обломки остановились, прекращаем вращение
                 piece['rotation_speed'] = 0

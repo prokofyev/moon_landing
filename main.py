@@ -18,6 +18,7 @@ def load_and_scale_images():
     # Загрузка изображений
     lander_img = pygame.image.load('images/lander.png')
     moon_img = pygame.image.load('images/moon.png')
+    stars_img = pygame.image.load('images/stars.png')
     exhaust_img = pygame.image.load('images/exhaust.png')
     man_img = pygame.image.load('images/man.png')
     
@@ -41,7 +42,7 @@ def load_and_scale_images():
     explosion_img = pygame.transform.scale(explosion_img, 
         (int(LANDER_WIDTH * 1.5), int(LANDER_HEIGHT * 1.5)))
         
-    return lander_img, moon_img, exhaust_img, man_img, explosion_img, LANDER_WIDTH, LANDER_HEIGHT
+    return lander_img, moon_img, stars_img, exhaust_img, man_img, explosion_img, LANDER_WIDTH, LANDER_HEIGHT
 
 def handle_input(lander, game_over):
     for event in pygame.event.get():
@@ -83,11 +84,45 @@ def check_landing(lander, message_time):
 
 def draw_game(screen, lander, images, fonts, message, game_over):
     screen.fill((0, 0, 0))
-    lander_img, moon_img, exhaust_img, man_img, explosion_img = images
+    lander_img, moon_img, stars_img, exhaust_img, man_img, explosion_img = images
     font, large_font = fonts
+
+    screen.blit(stars_img, (0, 0))
     
-    # Draw moon and lander
-    screen.blit(moon_img, (0, SCREEN_HEIGHT - moon_img.get_height()))
+    # Определяем, нужно ли начать уменьшение размера ракеты
+    if lander.y < MIN_SCREEN_Y:
+        # Масштаб уменьшается пропорционально превышению границы
+        min_scale = 0.01
+        height_meters = get_height_meters(lander.y)
+        scale = max(min_scale, get_height_meters(MIN_SCREEN_Y) / height_meters)
+        # Фиксируем позицию ракеты на экране
+        display_y = MIN_SCREEN_Y
+    else:
+        scale = 1.0
+        display_y = lander.y
+
+    scaled_moon = pygame.transform.scale(moon_img, 
+        (int(moon_img.get_width() * scale), int(moon_img.get_height() * scale)))
+
+    # Вычисляем позицию для центрального изображения луны
+    moon_width = scaled_moon.get_width()
+    center_x = (SCREEN_WIDTH - scaled_moon.get_width()) // 2
+    moon_y = SCREEN_HEIGHT - scaled_moon.get_height()
+
+    # Отрисовываем центральное изображение
+    screen.blit(scaled_moon, (center_x, moon_y))
+
+    # Добавляем копии слева от центра, пока не заполним экран
+    left_x = center_x - moon_width
+    while left_x >= -moon_width + 1:  # +1 пиксель для перекрытия
+        screen.blit(scaled_moon, (left_x, moon_y))
+        left_x -= moon_width
+    
+    # Добавляем копии справа от центра, пока не заполним экран
+    right_x = center_x + moon_width
+    while right_x <= SCREEN_WIDTH:
+        screen.blit(scaled_moon, (right_x, moon_y))
+        right_x += moon_width
 
     # Draw lander or debris
     if lander.crashed:
@@ -96,10 +131,26 @@ def draw_game(screen, lander, images, fonts, message, game_over):
         lander.debris.update()
         lander.debris.draw(screen)
     else:
-        screen.blit(lander_img, (lander.x, lander.y))
+        # Масштабируем изображение ракеты
+        scaled_lander = pygame.transform.scale(lander_img, 
+            (int(LANDER_WIDTH * scale), int(LANDER_HEIGHT * scale)))
+        # Корректируем позицию по горизонтали, чтобы ракета оставалась по центру
+        x_offset = (LANDER_WIDTH - scaled_lander.get_width()) // 2
+        screen.blit(scaled_lander, (lander.x + x_offset, display_y))
+        
         if lander.thrust_on and not lander.landed_successfully:
-            screen.blit(exhaust_img, (lander.x + LANDER_WIDTH//2 - exhaust_img.get_width()//2, 
-                                    lander.y + LANDER_HEIGHT))
+            # Масштабируем выхлоп соответственно
+            scaled_exhaust = pygame.transform.scale(exhaust_img,
+                (int(exhaust_img.get_width() * scale),
+                 int(exhaust_img.get_height() * scale)))
+            # Вычисляем центр ракеты с учетом масштаба
+            lander_center_x = lander.x + x_offset + scaled_lander.get_width() // 2
+            
+            # Позиционируем выхлоп по центру ракеты
+            exhaust_x = lander_center_x - scaled_exhaust.get_width() // 2
+            exhaust_y = display_y + scaled_lander.get_height()
+            
+            screen.blit(scaled_exhaust, (exhaust_x, exhaust_y))
     
      # Draw astronaut and check animation status
     if lander.landed_successfully:
@@ -135,14 +186,18 @@ def draw_astronaut(screen, lander, man_img, game_over):
                             SCREEN_HEIGHT - MOON_SURFACE_HEIGHT - man_img.get_height()))
         return True  # Animation finished
 
+def get_height_meters(y):
+    height_pixels = max(0, SCREEN_HEIGHT - MOON_SURFACE_HEIGHT - (y + LANDER_HEIGHT))
+    height_meters = height_pixels * PIXELS_TO_METERS
+    return height_meters
+
 def draw_ui(screen, lander, font, large_font, message, game_over):
     # Отображение скорости
     speed_text = font.render(f"Скорость: {abs(lander.velocity):.1f} м/с", True, (255, 255, 255))
     screen.blit(speed_text, (10, 10))
 
     # Отображение высоты (расстояние от поверхности луны до нижней части ракеты)
-    height_pixels = max(0, SCREEN_HEIGHT - MOON_SURFACE_HEIGHT - (lander.y + LANDER_HEIGHT))
-    height_meters = height_pixels * PIXELS_TO_METERS
+    height_meters = get_height_meters(lander.y + LANDER_HEIGHT)
     height_text = font.render(f"Высота: {height_meters:.1f} м", True, (255, 255, 255))
     screen.blit(height_text, (10, 40))
 

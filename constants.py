@@ -13,6 +13,8 @@ LANDER_WIDTH = 1
 LANDER_HEIGHT = 1
 
 MOON_SURFACE_HEIGHT = 250  # Высота поверхности луны от нижнего края экрана
+MIN_SCREEN_Y = 100  # минимальное расстояние от верха экрана в пикселях
+
 
 REAL_LANDER_HEIGHT = 5.0  # Реальная высота ракеты в метрах
 PIXELS_TO_METERS = REAL_LANDER_HEIGHT / LANDER_HEIGHT  # Коэффициент для конвертации пикселей в метры
