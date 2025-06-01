@@ -15,15 +15,19 @@ class LunarLander:
         self.landing_time = 0
         self.debris = None
         self.crash_time = 0 
+        self.fuel = INITIAL_FUEL
 
     def update(self):
         # Применяем гравитацию только если не приземлились успешно
         if not self.landed_successfully:
             self.velocity += GRAVITY * 0.1
 
-            # Если двигатель включен, применяем силу тяги
-            if self.thrust_on:
+            # Если двигатель включен и есть топливо, применяем силу тяги
+            if self.thrust_on and self.fuel > 0:
                 self.velocity -= THRUST * 0.1
+                self.fuel -= FUEL_CONSUMPTION_RATE * 0.1  # Уменьшаем топливо
+                if self.fuel < 0:  # Проверяем, не ушло ли значение в минус
+                    self.fuel = 0
 
             # Обновляем позицию
             self.y += self.velocity

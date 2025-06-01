@@ -138,7 +138,7 @@ def draw_game(screen, lander, images, fonts, message, game_over):
         x_offset = (LANDER_WIDTH - scaled_lander.get_width()) // 2
         screen.blit(scaled_lander, (lander.x + x_offset, display_y))
         
-        if lander.thrust_on and not lander.landed_successfully:
+        if lander.thrust_on and not lander.landed_successfully and lander.fuel > 0:
             # Масштабируем выхлоп соответственно
             scaled_exhaust = pygame.transform.scale(exhaust_img,
                 (int(exhaust_img.get_width() * scale),
@@ -200,6 +200,25 @@ def draw_ui(screen, lander, font, large_font, message, game_over):
     height_meters = get_height_meters(lander.y + LANDER_HEIGHT)
     height_text = font.render(f"Высота: {height_meters:.1f} м", True, (255, 255, 255))
     screen.blit(height_text, (10, 40))
+
+    # Отрисовка полоски топлива
+    fuel_x = SCREEN_WIDTH - FUEL_BAR_WIDTH - 20
+    fuel_y = 40
+    
+    # Рамка для полоски топлива
+    pygame.draw.rect(screen, (255, 255, 255), 
+                     (fuel_x, fuel_y, FUEL_BAR_WIDTH, FUEL_BAR_HEIGHT), 2)
+    
+    # Заполнение полоски топлива
+    fuel_percentage = lander.fuel / INITIAL_FUEL
+    current_fuel_width = int(FUEL_BAR_WIDTH * fuel_percentage)
+    if current_fuel_width > 0:
+        pygame.draw.rect(screen, (0, 255, 0), 
+                         (fuel_x, fuel_y, current_fuel_width, FUEL_BAR_HEIGHT))
+    
+    # Текст "FUEL"
+    fuel_text = font.render("Горючее", True, (255, 255, 255))
+    screen.blit(fuel_text, (fuel_x, 10))
 
     if game_over:
         text = large_font.render(message, True, (255, 255, 255))
